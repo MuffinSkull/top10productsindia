@@ -114,9 +114,11 @@ function event_importer() {
             'Venue' => $venue_id,
             'Organizer' => $organizer_id
         ));
-    }
+    
 
     // Close the uploaded file
     fclose($handle);
 }
+}
+add_action('admin_post_event_importer', 'event_importer
 ?>
