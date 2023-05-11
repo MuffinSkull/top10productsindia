@@ -122,3 +122,304 @@ function event_importer() {
 }
 add_action('admin_post_event_importer', 'event_importer
 ?>
+
+
+
+
+
+
+
+
+
+
+<?php
+
+/*
+
+Plugin Name: CSV Event Importer
+
+*/
+
+add_action( 'admin_menu', 'csv_event_importer_menu' );
+
+function csv_event_importer_menu() {
+
+	add_submenu_page( 'edit.php?post_type=tribe_events', 'CSV Event Importer', 'CSV Import', 'manage_options', 'csv-event-importer', 'csv_event_importer_page' );
+
+}
+
+function csv_event_importer_page() {
+
+	if ( isset( $_POST['submit'] ) ) {
+
+		$csv_file = $_FILES['csv_file']['tmp_name'];
+
+		if ( empty( $csv_file ) ) {
+
+			echo '<div class="notice notice-error"><p>Please select a CSV file to upload.</p></div>';
+
+			return;
+
+		}
+
+		// Validate the CSV file headers.
+
+		$valid_fields = array(
+
+			'Event Name',
+
+			'Venue Name',
+
+			'Event Start Date',
+
+			'Event End Date',
+
+			'Organizer Name',
+
+			'Organizer Email',
+
+			'Organizer Phone',
+
+			'Additional Field 1',
+
+			'Additional Field 2',
+
+			'Additional Field 3',
+
+		);
+
+		$header_row = str_getcsv( fgets( fopen( $csv_file, 'r' ) ) );
+
+		$unknown_fields = array_diff( $header_row, $valid_fields );
+
+		
+
+		if ( ! empty( $unknown_fields ) ) {
+
+			echo '<div class="notice notice-error"><p>Unknown fields in CSV file: ' . implode( ', ', $unknown_fields ) . '</p></div>';
+
+			return;
+
+		}
+
+		// Process the CSV file.
+
+		$handle = fopen( $csv_file, 'r' );
+
+		// Skip the first row (header).
+
+		fgets( $handle );
+
+		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+
+			$event_title = $row[0];
+
+			$venue_name = $row[1];
+
+			$event_start_date = $row[2];
+
+			$event_end_date = $row[3];
+
+			$organizer_name = $row[4];
+
+			$organizer_email = $row[5];
+
+			$organizer_phone = $row[6];
+
+			$additional_field_1 = isset( $row[7] ) ? $row[7] : '';
+
+			$additional_field_2 = isset( $row[8] ) ? $row[8] : '';
+
+			$additional_field_3 = isset( $row[9] ) ? $row[9] : '';
+
+			// Check if the venue already exists.
+
+			$venue = tribe_get_venue_by( 'name', $venue_name );
+
+			if ( empty( $venue ) ) {
+
+				// Create a new venue.
+
+				$venue_args = array(
+
+					'post_title' => $venue_name,
+
+					'post_type' => Tribe__Events__Main::VENUE_POST_TYPE,
+
+					'post_status' => 'publish',
+
+				);
+
+				$venue_id = wp_insert_post( $venue_args );
+
+				// Update the venue address.
+
+				$venue_address = array(
+
+					'Address' => '',
+
+					'Address2' => '',
+
+					'City' => '',
+
+					'StateProvinceRegion' => '',
+
+					'ZipPostalCode' => '',
+
+					'Country' => '',
+
+				);
+
+				update_post_meta( $venue_id
+
+//Broken
+
+			// Create the organizer post
+
+			$organizer_id = tribe_create_organizer( [
+
+				'post_title' => $organizer_name,
+
+				'post_status' => 'publish',
+
+				'tribe_organizer_email' => $organizer_email,
+
+				'tribe_organizer_phone' => $organizer_phone,
+
+			] );
+
+			// Create the event post
+
+			$event = [
+
+				'post_title' => $event_title,
+
+				'post_type' => 'tribe_events',
+
+				'post_status' => 'publish',
+
+				'EventStartDate' => $event_start_date,
+
+				'EventEndDate' => $event_end_date,
+
+				'tribe_venue' => $venue_id,
+
+				'tribe_organizer' => $organizer_id,
+
+			];
+
+			// Add additional fields to the event post
+
+			for ( $i = 0; $i < count( $additional_fields ); $i++ ) {
+
+				$field_name = 'additional_field_' . ( $i + 1 );
+
+				if ( isset( $additional_fields[ $i ] ) ) {
+
+					$event[ $field_name ] = $additional_fields[ $i ];
+
+				}
+
+			}
+
+			$event_id = wp_insert_post( $event );
+
+			if ( is_wp_error( $event_id ) ) {
+
+				throw new Exception( 'Unable to create event post: ' . $event_id->get_error_message() );
+
+			}
+
+			// Update the event post meta
+
+			update_post_meta( $event_id, '_EventStartDate', $event_start_date );
+
+			update_post_meta( $event_id, '_EventEndDate', $event_end_date );
+
+			update_post_meta( $event_id, '_EventVenueID', $venue_id );
+
+			update_post_meta( $event_id, '_EventOrganizerID', $organizer_id );
+
+			// Update the additional fields meta
+
+			for ( $i = 0; $i < count( $additional_fields ); $i++ ) {
+
+				$field_name = 'additional_field_' . ( $i + 1 );
+
+				if ( isset( $additional_fields[ $i ] ) ) {
+
+					update_post_meta( $event_id, $field_name, $additional_fields[ $i ] );
+
+				}
+
+			}
+
+		}
+
+		// Display success message
+
+		$message = sprintf( __( 'Successfully imported %d events', 'textdomain' ), $import_count );
+
+		echo '<div class="notice notice-success is-dismissible"><p>' . $message . '</p></div>';
+
+	}
+
+}
+
+//Fix
+
+// Check if the venue already exists
+
+$existing_venue = tribe_get_venue_by_name_address( $venue_name, $venue_address );
+
+if ( ! $existing_venue ) {
+
+    // Create a new venue if it doesn't exist
+
+    $venue_id = tribe_create_venue( [
+
+        'post_title' => $venue_name,
+
+        'post_content' => $venue_description,
+
+        'post_status' => 'publish',
+
+        'VenueAddress' => $venue_address,
+
+        'VenueCity' => $venue_city,
+
+        'VenueState' => $venue_state,
+
+        'VenueZip' => $venue_zip,
+
+        'VenueCountry' => $venue_country
+
+    ] );
+
+} else {
+
+    // Otherwise, update the existing venue
+
+    $venue_id = $existing_venue->ID;
+
+    $venue_data = [
+
+        'post_title' => $venue_name,
+
+        'post_content' => $venue_description,
+
+        'VenueAddress' => $venue_address,
+
+        'VenueCity' => $venue_city,
+
+        'VenueState' => $venue_state,
+
+        'VenueZip' => $venue_zip,
+
+        'VenueCountry' => $venue_country
+
+    ];
+
+    tribe_update_venue( $venue_id, $venue_data );
+
+}
